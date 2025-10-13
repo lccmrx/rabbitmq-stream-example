@@ -1,0 +1,44 @@
+services:
+
+  rabbit:
+    image: rabbitmq:4-management
+    tty: true
+    networks:
+      - internal
+    ports:
+      - 5552:5552
+      - 15672:15672
+    environment:
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbitmq_stream advertised_host rabbit
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_stream rabbitmq_stream_management &&
+           rabbitmq-server"
+    healthcheck:
+      test: ["CMD", "true"]
+      start_period: 10s
+
+  producer: &rabbit-resource
+    networks:
+      - internal
+    build:
+      args:
+        - CMD=cmd/producer
+    depends_on: 
+      rabbit:
+        condition: service_healthy
+    
+  consumer:
+    <<: *rabbit-resource
+    build:
+      args:
+        - CMD=cmd/consumer
+  
+  stats:
+    <<: *rabbit-resource
+    build:
+      args:
+        - CMD=cmd/stats
+
+networks:
+  internal:
+    driver: bridge
