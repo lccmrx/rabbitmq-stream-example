@@ -4,6 +4,7 @@ import (
 	"log"
 	"log/slog"
 	"math/rand"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"rabbit-heartbeat/rabbit"
@@ -15,7 +16,9 @@ import (
 
 func init() {
 	godotenv.Load()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
 }
 
 func main() {
@@ -42,10 +45,5 @@ func main() {
 }
 
 func consumer(id, message string) {
-	slog.Info("received rabbit message",
-		slog.Any("message-id", id),
-		slog.String("data", message),
-	)
-
 	time.Sleep(time.Duration(rand.Intn(10)) * time.Second)
 }

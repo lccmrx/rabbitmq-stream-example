@@ -7,9 +7,9 @@ import (
 	"os"
 	"strconv"
 	"sync/atomic"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/lccmrx/go-swiss-knife/pkg/worker"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/amqp"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/ha"
 	"github.com/rabbitmq/rabbitmq-stream-go-client/pkg/stream"
@@ -19,6 +19,8 @@ type StreamClient struct {
 	rabbit    *stream.Environment
 	consumers []*ha.ReliableConsumer
 	producers []*ha.ReliableProducer
+
+	wp *worker.WorkerPool
 }
 
 var MessageCount atomic.Int64
@@ -44,6 +46,7 @@ func Connect() (*StreamClient, error) {
 		rabbit:    rabbitEnv,
 		consumers: make([]*ha.ReliableConsumer, 0),
 		producers: make([]*ha.ReliableProducer, 0),
+		wp:        worker.New(),
 	}, nil
 }
 
@@ -53,10 +56,10 @@ func (rmq *StreamClient) AddConsumer(streamName, consumerName string, fn func(id
 	slog.Info("stored offset for stream/consumer", slog.Group("data", "stream", streamName, "consumer", consumerName, "offset", storedOffset))
 
 	var offsetSpec stream.OffsetSpecification = stream.OffsetSpecification{}.First()
-	if storedOffset > 0 {
-		slog.Info("Resuming from stored offset", "offset", storedOffset)
-		offsetSpec = stream.OffsetSpecification{}.Next()
-	}
+	// if storedOffset > 0 {
+	// 	slog.Info("Resuming from stored offset", "offset", storedOffset)
+	// 	offsetSpec = stream.OffsetSpecification{}.Next()
+	// }
 
 	opts := stream.NewConsumerOptions().
 		SetConsumerName(consumerName).
@@ -69,19 +72,10 @@ func (rmq *StreamClient) AddConsumer(streamName, consumerName string, fn func(id
 		id := message.Properties.MessageID
 		data := string(message.GetData())
 
-		go func() {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("panic on consuming message", r)
-				}
-			}()
-			start := time.Now()
-			defer func() {
-				slog.Info("ended handling message", "message-id", id, "took", time.Since(start).String())
-			}()
-
+		rmq.wp.Dispatch(func() error {
 			fn(id.(string), data)
-		}()
+			return nil
+		})
 	})
 	rmq.consumers = append(rmq.consumers, consumer)
 	return err
@@ -144,6 +138,8 @@ func (rmq *StreamClient) Close() {
 	for _, consumer := range rmq.consumers {
 		consumer.Close()
 	}
+
+	rmq.wp.Wait()
 
 	rmq.rabbit.Close()
 }

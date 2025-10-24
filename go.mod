@@ -5,6 +5,7 @@ go 1.25.1
 require (
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/lccmrx/go-swiss-knife v0.0.1
 	github.com/rabbitmq/rabbitmq-stream-go-client v1.6.0
 )
 

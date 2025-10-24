@@ -10,8 +10,6 @@ RUN apk update && \
     go mod download && \
     go build -C $CMD -o $(pwd)/bin/rabbit .
 
-RUN pwd && ls .
-
 FROM alpine
 
 WORKDIR /app
